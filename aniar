@@ -50,6 +50,7 @@ setup_directories() {
     mkdir -p "$CONFIG_DIR" "$CACHE_DIR"
     [ ! -f "$CONFIG_FILE" ] && create_default_config
     [ ! -f "$HISTORY_FILE" ] && touch "$HISTORY_FILE"
+    load_config
 }
 
 create_default_config() {
@@ -468,7 +469,6 @@ clean_cache() {
 
 main() {
     setup_directories
-    load_config
     check_dependencies
     
     local query="$*"
