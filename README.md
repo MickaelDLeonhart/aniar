@@ -21,4 +21,4 @@ A command-line tool for streaming anime with Arabic subtitles from Okanime. Buil
 
 ```bash
 # One-line install (Linux/macOS)
-curl -sL https://raw.githubusercontent.com/MickaelDLeonhart/aniar/main/install.sh | bash
+curl -sL https://github.com/MickaelDLeonhart/aniar/releases/download/v1.0.0/install.sh | bash
