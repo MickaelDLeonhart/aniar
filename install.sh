@@ -134,7 +134,7 @@ echo -e "\n${BLUE}⬇️  Downloading aniar...${NC}"
 TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 
-if curl -sL "https://raw.githubusercontent.com/MickaelDLeonhart/aniar/main/aniar" -o "aniar"; then
+if curl -sL "https://github.com/MickaelDLeonhart/aniar/releases/download/v1.0.0/aniar" -o "aniar"; then
     echo -e "  ${GREEN}✅ Downloaded successfully${NC}"
     
     # Install to /usr/local/bin
