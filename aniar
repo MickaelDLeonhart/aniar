@@ -2,14 +2,11 @@
 # aniar - Arabic Anime Streaming Tool
 # Created by Mickael D Leonhart
 # GitHub: https://github.com/MickaelDLeonhart/aniar
-
-set -e
-
 # ==================== CONFIGURATION ====================
 VERSION="1.0.0"
 AUTHOR="Mickael D Leonhart"
 GITHUB_URL="https://github.com/MickaelDLeonhart/aniar"
-OKANIME_BASE="https://ok.okanime.xyz"
+ANIME4UP_BASE="https://w1.anime4up.rest"
 PREFERRED_SOURCES=("videa.hu" "drive.google.com" "ok.ru" "solidfiles.com" "mp4upload.com" "4shared.com")
 DEFAULT_PLAYER="mpv"
 USER_AGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
@@ -24,12 +21,16 @@ HISTORY_FILE="$CONFIG_DIR/history"
 # ASCII Art
 show_banner() {
     cat << "EOF"
-    _    _ _ 
-   / \  | (_) __ _ 
-  / _ \ | | |/ _` |
- / ___ \| | | (_| |
-/_/   \_\_|_|\__,_|
-Arabic Anime Streaming Tool
+                                                                  _______  _              _______ 
+                                                                 (  ___  )( \   |\     /|(  ___  )
+                                                                 | (   ) || (   ( \   / )| (   ) |
+                                                                 | (___) || |    \ (_) / | (___) |
+                                                                 |  ___  || |     \   /  |  ___  |
+                                                                 | (   ) || |      ) (   | (   ) |
+                                                                 | )   ( || (____/\| |   | )   ( |
+                                                                 |/     \|(_______/\_/   |/     \|
+                                 
+                                                                    Arabic Anime Streaming Tool
 EOF
     echo -e "v$VERSION | By $AUTHOR\n"
 }
@@ -50,7 +51,6 @@ setup_directories() {
     mkdir -p "$CONFIG_DIR" "$CACHE_DIR"
     [ ! -f "$CONFIG_FILE" ] && create_default_config
     [ ! -f "$HISTORY_FILE" ] && touch "$HISTORY_FILE"
-    load_config
 }
 
 create_default_config() {
@@ -254,79 +254,162 @@ select_best_source() {
     die "❌ No playable sources found"
 }
 
-# ==================== OKANIME FUNCTIONS ====================
-
-search_okanime() {
-    local query="$1"
-    log "🔍 Searching: $query"
-    
-    local cache_key="search_$(echo -n "$query" | md5sum | cut -d' ' -f1)"
-    local cached=$(cache_get "$cache_key")
-    [ -n "$cached" ] && { echo "$cached"; return; }
-    
-    local encoded_query=$(printf "%s" "$query" | sed 's/ /+/g')
-    local search_url="${OKANIME_BASE}/search/?s=${encoded_query}"
-    
-    local html=$(curl -s -L -A "$USER_AGENT" "$search_url")
-    
-    local results=$(echo "$html" | awk '
-        /<a href="https:\/\/ok\.okanime\.xyz\/anime\/[^"]+"/ {
-            match($0, /href="([^"]+)"/, arr)
-            url = arr[1]
-            get_title = 1
-            next
-        }
-        get_title && /<h3>/ {
-            match($0, /<h3>([^<]+)</, arr)
-            if (arr[1]) {
-                print url "\t" arr[1]
-                get_title = 0
-            }
-        }
-    ' | sort -u)
-    
-    cache_set "$cache_key" "$results"
-    echo "$results"
-}
-
-get_episodes_from_series() {
-    local series_url="$1"
-    
-    log "📺 Loading episodes..."
-    
-    local cache_key="episodes_$(echo -n "$series_url" | md5sum | cut -d' ' -f1)"
-    local cached=$(cache_get "$cache_key")
-    [ -n "$cached" ] && { echo "$cached"; return; }
-    
-    local html=$(curl -s -L -A "$USER_AGENT" "$series_url")
-    
-    local episodes=$(echo "$html" | grep -oE 'href="https://ok\.okanime\.xyz/episode/[^"]+"' | \
-        sed 's/href="//;s/"//' | \
-        sort -u | \
-        while read -r url; do
-            local clean_url=$(echo "$url" | sed 's/%D8%A7%D9%84%D8%AD%D9%84%D9%82%D8%A9/الحلقة/g')
-            local ep_num=$(echo "$clean_url" | grep -oE '([0-9]+)-الحلقة' | grep -oE '[0-9]+' || \
-                          echo "$clean_url" | grep -oE 'episode-([0-9]+)' | grep -oE '[0-9]+' || \
-                          echo "?")
-            echo -e "${ep_num}\tEpisode ${ep_num}\t${url}"
-        done | sort -V -k1,1n)
-    
-    cache_set "$cache_key" "$episodes"
-    echo "$episodes"
-}
+# ==================== ANIME4UP FUNCTIONS ====================
 
 extract_title_from_url() {
     local url="$1"
     echo "$url" | sed '
+        s|.*/anime/||;
         s|.*/episode/||;
-        s|-الحلقة.*||;
-        s/%D8%A7%D9%84%D8%AD%D9%84%D9%82%D8%A9//g;
-        s/[0-9]\+-*//g;
+        s/%[0-9A-Fa-f][0-9A-Fa-f]//g;
         s/-/ /g;
-        s/^\s*//; s/\s*$//;
-        s/\b\(.\)/\u\1/g;
-        s/\/$//;
-        s/ $//'
+        s|/||g;
+        s/^ //; s/ $//;
+        s/  */ /g'
+}
+
+search_anime4up_fast() {
+    local query="$1"
+    log "🔍 Searching Anime4Up: $query"
+
+    local cache_key="search_a4up_$(echo -n "$query" | md5sum | cut -d' ' -f1)"
+    local cached=$(cache_get "$cache_key")
+    [ -n "$cached" ] && { echo "$cached"; return; }
+
+    local encoded_query=$(printf "%s" "$query" | sed 's/ /+/g')
+    local search_url="${ANIME4UP_BASE}/?search_param=animes&s=${encoded_query}"
+
+    local html=$(curl -s -L -A "$USER_AGENT" "$search_url")
+
+    # Real HTML: <h3><a href="https://w1.anime4up.rest/anime/SLUG/">Title</a></h3>
+    # Extract url\ttitle pairs from these h3 lines in one pass
+    local results=$(echo "$html" | grep -oP '<h3><a href="\Khttps://w1\.anime4up\.rest/anime/[^"]+(?="[^>]*>[^<]+</a></h3>)' | \
+        while read -r url; do
+            local title=$(echo "$html" | grep -oP "href=\"${url//./\\.}\"[^>]*>\\K[^<]+")
+            [ -n "$title" ] && echo -e "${url}\t${title}"
+        done)
+
+    # Reliable fallback: single grep that captures both url and title from the same h3 line
+    if [ -z "$results" ]; then
+        results=$(echo "$html" | \
+            grep -oP '<h3><a href="(https://w1\.anime4up\.rest/anime/[^"]+)"[^>]*>([^<]+)</a></h3>' | \
+            sed 's|<h3><a href="\([^"]*\)"[^>]*>\([^<]*\)</a></h3>|\1\t\2|')
+    fi
+
+    cache_set "$cache_key" "$results"
+    echo "$results"
+}
+
+get_episodes_from_anime4up() {
+    local series_url="$1"
+
+    log "📺 Loading episodes from Anime4Up..."
+
+    local cache_key="episodes_a4up_$(echo -n "$series_url" | md5sum | cut -d' ' -f1)"
+    local cached=$(cache_get "$cache_key")
+    [ -n "$cached" ] && { echo "$cached"; return; }
+
+    local html=$(curl -s -L -A "$USER_AGENT" "$series_url")
+
+    # Real structure: <a href="https://w1.anime4up.rest/episode/SLUG-%d8%a7%d9%84%d8%ad%d9%84%d9%82%d8%a9-NUMBER/">
+    # URL-encoded الحلقة = %d8%a7%d9%84%d8%ad%d9%84%d9%82%d8%a9 (lowercase) or %D8%A7... (uppercase)
+    local episodes=$(echo "$html" | \
+        grep -oiP 'href="\Khttps://w1\.anime4up\.rest/episode/[^"]+' | \
+        sort -u | \
+        while read -r url; do
+            # Decode %d8%a7%d9%84%d8%ad%d9%84%d9%82%d8%a9 -> الحلقة then grab the trailing number
+            local ep_num=$(echo "$url" | grep -oiP '(?<=%d8%a7%d9%84%d8%ad%d9%84%d9%82%d8%a9-)\d+' | head -1)
+            # Also try after decoded form if curl had already decoded
+            [ -z "$ep_num" ] && ep_num=$(echo "$url" | grep -oP '(?<=الحلقة-)\d+' | head -1)
+            # Fallback: last number in the slug
+            [ -z "$ep_num" ] && ep_num=$(echo "$url" | grep -oP '\d+(?=[^0-9/]*/?$)' | head -1)
+            [ -z "$ep_num" ] && ep_num="?"
+            echo -e "${ep_num}\tالحلقة ${ep_num}\t${url}"
+        done | sort -t$'\t' -k1,1V)
+
+    cache_set "$cache_key" "$episodes"
+    echo "$episodes"
+}
+
+extract_embed_video_url() {
+    local embed_url="$1"
+    local referer="${2:-https://w1.anime4up.rest/}"
+
+    # Try yt-dlp first (fast path)
+    local video_url=$(yt-dlp --no-warnings -g "$embed_url" 2>/dev/null | head -1)
+    [ -n "$video_url" ] && echo "$video_url" && return 0
+
+    # Fetch the embed page HTML and scrape direct video URL
+    local html=$(curl -s -L -A "$USER_AGENT" -e "$referer" "$embed_url")
+
+    # Match direct mp4/m3u8/mpd URLs
+    video_url=$(echo "$html" | grep -oP 'https?://[^\s"'\''<>]+\.(mp4|m3u8|mpd)[^\s"'\''<>]*' | head -1)
+    [ -n "$video_url" ] && echo "$video_url" && return 0
+
+    # Match "file": "URL" or file: "URL" patterns (jwplayer / plyr style)
+    video_url=$(echo "$html" | grep -oP '"file"\s*:\s*"\K[^"]+' | grep -i 'mp4\|m3u8\|mpd' | head -1)
+    [ -n "$video_url" ] && echo "$video_url" && return 0
+
+    # Match sources:[{file:"URL"}] without quotes around key
+    video_url=$(echo "$html" | grep -oP 'file\s*:\s*"\K[^"]+' | grep -i 'mp4\|m3u8\|mpd' | head -1)
+    [ -n "$video_url" ] && echo "$video_url" && return 0
+
+    return 1
+}
+
+extract_anime4up_video() {
+    local episode_url="$1"
+
+    debug "Extracting Anime4Up video from: $episode_url"
+
+    local html=$(curl -s -L -A "$USER_AGENT" "$episode_url")
+
+    # Sources are in: <li data-watch="EMBED_URL" ...>
+    local embeds=$(echo "$html" | grep -oP 'data-watch="\K[^"]+')
+    [ -z "$embeds" ] && { warn "No data-watch sources found on page"; return 1; }
+
+    local count=$(echo "$embeds" | wc -l)
+    log "📡 Found $count embed source(s) on Anime4Up"
+
+    # Skip these entirely - broken or unsupported
+    local skip_list=("mega.nz" "ok.ru" "solidfiles" "uptostream" "vidbam" "vadbam" "dood" "dsvplay" "myvidplay")
+
+    while read -r embed; do
+        local skip=0
+        for s in "${skip_list[@]}"; do
+            [[ "$embed" == *"$s"* ]] && skip=1 && break
+        done
+        [ "$skip" -eq 1 ] && debug "Skipping: $embed" && continue
+
+        local embed_name=$(echo "$embed" | grep -oP 'https?://\K[^/]+' | sed 's/^www\.//')
+        log "🔗 Trying: $embed_name"
+        local video_url=$(extract_embed_video_url "$embed" "$episode_url")
+        if [ -n "$video_url" ]; then
+            log "✅ Got stream!"
+            echo "$video_url"
+            echo "REFERER:$embed"
+            return 0
+        fi
+        warn "⚠️  No stream from: $embed"
+    done <<< "$embeds"
+
+    warn "❌ No playable source found on Anime4Up"
+    return 1
+}
+
+# ==================== SOURCE SELECTION WITH FALLBACK ====================
+
+search_with_fallback() {
+    local query="$1"
+
+    local results=$(search_anime4up_fast "$query" 2>/dev/null)
+    if [ -n "$results" ]; then
+        echo "anime4up"
+        echo "$results"
+        return 0
+    fi
+
+    return 1
 }
 
 # ==================== PLAYBACK FUNCTIONS ====================
@@ -336,12 +419,18 @@ play_episode() {
     local title="$2"
     local episode_num="$3"
     
-    local clean_title=$(echo "$title" | sed 's/%[0-9A-F][0-9A-F]//g; s/\/$//; s/ $//')
+    local clean_title=$(echo "$title" | sed 's/%[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]*//g; s/-/ /g; s|/||g; s/^ //; s/ $//; s/  */ /g')
     [ -z "$clean_title" ] && clean_title="Anime Episode"
     
     log "🎬 Playing: $clean_title $( [ -n "$episode_num" ] && echo "- Episode $episode_num" )"
-    
-    local video_url=$(select_best_source "$episode_url")
+
+    local video_url=""
+
+    local embed_referer=""
+    local raw_output
+    raw_output=$(extract_anime4up_video "$episode_url")
+    video_url=$(echo "$raw_output" | grep -v '^REFERER:' | head -1)
+    embed_referer=$(echo "$raw_output" | grep '^REFERER:' | head -1 | cut -d: -f2-)
     [ -z "$video_url" ] && die "Failed to get video URL"
     
     add_to_history "$clean_title" "$episode_num" "$clean_title Episode $episode_num"
@@ -349,11 +438,16 @@ play_episode() {
     log "🚀 Launching player..."
     
     local mpv_opts=("--force-media-title=$clean_title")
+    # Pass referer + user-agent headers so CDN accepts the request
+    if [ -n "$embed_referer" ]; then
+        mpv_opts+=("--referrer=$embed_referer")
+        mpv_opts+=("--user-agent=$USER_AGENT")
+    fi
     [ -n "$MPV_OPTIONS" ] && mpv_opts+=($MPV_OPTIONS)
     
     if ! $DEFAULT_PLAYER "${mpv_opts[@]}" "$video_url" 2>/dev/null; then
         warn "🔄 Trying with different options..."
-        $DEFAULT_PLAYER "${mpv_opts[@]}" --no-cache --cache=no "$video_url" 2>/dev/null
+        $DEFAULT_PLAYER "${mpv_opts[@]}" --no-cache --cache=no "$video_url" 2>/dev/null || true
     fi
 }
 
@@ -361,10 +455,18 @@ play_episode() {
 
 interactive_select() {
     local query="$1"
-    
-    local series_results=$(search_okanime "$query")
+
+    # --- Get search results with fallback ---
+    local raw_output
+    raw_output=$(search_with_fallback "$query") || die "No results found on any source"
+
+    local active_source=$(echo "$raw_output" | head -1)
+    local series_results=$(echo "$raw_output" | tail -n +2)
+
     [ -z "$series_results" ] && die "No results found"
-    
+
+    log "📡 Source: $active_source"
+
     local selected_series
     if command -v fzf >/dev/null; then
         selected_series=$(printf "%b" "$series_results" | fzf --reverse --with-nth=2.. --prompt="🎌 Select anime: " | cut -f1)
@@ -376,14 +478,14 @@ interactive_select() {
         selected_series=$(printf "%b" "$series_results" | sed -n "${choice}p" | cut -f1)
     fi
     [ -z "$selected_series" ] && die "No selection"
-    
-    local episodes=$(get_episodes_from_series "$selected_series")
+
+    local episodes=$(get_episodes_from_anime4up "$selected_series")
     [ -z "$episodes" ] && die "No episodes found"
-    
+
     local series_title=$(extract_title_from_url "$selected_series")
     local last_ep=$(get_last_watched "$series_title")
     [ -n "$last_ep" ] && log "📝 Last watched: Episode $last_ep"
-    
+
     local selected_episode
     if command -v fzf >/dev/null; then
         selected_episode=$(printf "%s\n" "$episodes" | fzf --reverse --with-nth=1,2 --prompt="🎬 Select episode: " --header="Last: Episode $last_ep")
@@ -393,12 +495,13 @@ interactive_select() {
         read -r choice
         selected_episode=$(printf "%s\n" "$episodes" | sed -n "${choice}p")
     fi
-    
+
     local ep_num=$(echo "$selected_episode" | cut -f1)
     local ep_url=$(echo "$selected_episode" | cut -f3)
-    
+
     echo "$ep_url"
     echo "$ep_num"
+    echo "$active_source"
 }
 
 # ==================== COMMAND FUNCTIONS ====================
@@ -410,7 +513,7 @@ Usage:
   aniar [OPTION]... [QUERY]
 
 Options:
-  QUERY                   Search and play anime
+  QUERY                   Search and play anime via Anime4Up
   continue SERIES         Continue watching from last episode
   search QUERY            Search without playing
   direct URL [TITLE]      Play direct episode URL
@@ -419,6 +522,8 @@ Options:
   update                  Check for updates
   clean                   Clear cache
   help                    Show this help
+
+Source: Anime4Up (${ANIME4UP_BASE})
 
 Examples:
   aniar "ناروتو"          # Search and play Naruto
@@ -445,8 +550,9 @@ check_dependencies() {
 
 check_update() {
     log "🔍 Checking for updates..."
-    local latest=$(curl -s "https://api.github.com/repos/MickaelDLeonhart/aniar/releases/latest" 2>/dev/null | \
-        grep -oP '"tag_name": "\K[^"]+' || echo "$VERSION")
+    local latest
+    latest=$(curl -s "https://api.github.com/repos/MickaelDLeonhart/aniar/releases/latest" 2>/dev/null | \
+        grep -oP '"tag_name": "\K[^"]+') || latest="$VERSION"
     
     if [ "$latest" != "$VERSION" ] && [ "$latest" != "v$VERSION" ]; then
         warn "📦 Update available! v$VERSION → v$latest"
@@ -469,6 +575,7 @@ clean_cache() {
 
 main() {
     setup_directories
+    load_config
     check_dependencies
     
     local query="$*"
@@ -481,9 +588,11 @@ main() {
     
     [ -z "$query" ] && die "No search query"
     
-    local selection=$(interactive_select "$query")
-    local episode_url=$(echo "$selection" | head -1)
-    local episode_num=$(echo "$selection" | tail -1)
+    local selection
+    selection=$(interactive_select "$query")
+    local episode_url=$(echo "$selection" | sed -n '1p')
+    local episode_num=$(echo "$selection" | sed -n '2p')
+    local active_source=$(echo "$selection" | sed -n '3p')
     
     [ -z "$episode_url" ] && die "No episode selected"
     
@@ -502,7 +611,7 @@ case "${1:-}" in
         ;;
     search)
         [ -z "$2" ] && die "Usage: $0 search QUERY"
-        search_okanime "${*:2}" | cat -n
+        search_with_fallback "${*:2}" | tail -n +2 | cat -n
         ;;
     direct)
         [ -z "$2" ] && die "Usage: $0 direct URL [TITLE]"
