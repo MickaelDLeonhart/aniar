@@ -67,11 +67,8 @@ create_default_config() {
 # Video quality preference (best, worst, 720p, 480p, etc)
 # QUALITY="best"
 
-# Subtitle language preference (ar, en, none)
-# SUBTITLE_LANG="ar"
-
 # Auto-play next episode
-# AUTO_NEXT=false
+# AUTO_NEXT=true
 
 # Default anime directory for downloads
 # DOWNLOAD_DIR="$HOME/Anime"
