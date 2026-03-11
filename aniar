@@ -387,6 +387,18 @@ extract_anime4up_video() {
 
     # Skip these entirely - broken or unsupported
     local skip_list=("mega.nz" "ok.ru" "solidfiles" "uptostream" "vidbam" "vadbam" "dood" "dsvplay" "myvidplay")
+    # Try upload.is first
+    local upload_source=$(echo "$embeds" | grep -i "upload.is" | head -1)
+    if [ -n "$upload_source" ]; then
+        log "🚀 Trying upload.is first..."
+        local video_url=$(extract_embed_video_url "$upload_source" "$episode_url")
+        if [ -n "$video_url" ]; then
+            log "✅ Got stream from upload.is!"
+            echo "$video_url"
+            echo "REFERER:$upload_source"
+            return 0
+        fi
+    fi
 
     while read -r embed; do
         local skip=0
