@@ -5,7 +5,8 @@
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux%20|%20macOS-lightgrey)
 
-A command-line tool for streaming anime with Arabic subtitles from Okanime. Built specifically for Arabic-speaking anime fans.
+A command-line tool for streaming anime with Arabic subtitles from anime4up. Built specifically for Arabic-speaking anime fans, And it doesn't collect any kind of data. 
+
 
 ## ✨ Features
 
