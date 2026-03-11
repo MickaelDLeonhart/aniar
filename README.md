@@ -1,7 +1,7 @@
 # 🎬 aniar - Arabic Anime Streaming Tool
 
 ![aniar banner](https://img.shields.io/badge/aniar-Arabic_Anime_Streaming-blue)
-![Version](https://img.shields.io/badge/version-1.0.0-green)
+![Version](https://img.shields.io/badge/version-1.0.1-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux%20|%20macOS-lightgrey)
 
@@ -21,4 +21,4 @@ A command-line tool for streaming anime with Arabic subtitles from Okanime. Buil
 
 ```bash
 # One-line install (Linux/macOS)
-curl -sL https://github.com/MickaelDLeonhart/aniar/releases/download/v1.0.0/install.sh | bash
+curl -sL https://github.com/MickaelDLeonhart/aniar/releases/download/v1.0.1/install.sh | bash
