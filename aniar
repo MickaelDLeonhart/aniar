@@ -67,8 +67,11 @@ create_default_config() {
 # Video quality preference (best, worst, 720p, 480p, etc)
 # QUALITY="best"
 
+# Subtitle language preference (ar, en, none)
+# SUBTITLE_LANG="ar"
+
 # Auto-play next episode
-# AUTO_NEXT=true
+# AUTO_NEXT=false
 
 # Default anime directory for downloads
 # DOWNLOAD_DIR="$HOME/Anime"
@@ -298,32 +301,48 @@ search_anime4up_fast() {
 get_episodes_from_anime4up() {
     local series_url="$1"
 
-    log "📺 Loading episodes from Anime4Up..."
+    log "📺 Loading all episodes..."
 
     local cache_key="episodes_a4up_$(echo -n "$series_url" | md5sum | cut -d' ' -f1)"
     local cached=$(cache_get "$cache_key")
     [ -n "$cached" ] && { echo "$cached"; return; }
 
-    local html=$(curl -s -L -A "$USER_AGENT" "$series_url")
+    local all_episodes=""
+    local page=1
 
-    # Real structure: <a href="https://w1.anime4up.rest/episode/SLUG-%d8%a7%d9%84%d8%ad%d9%84%d9%82%d8%a9-NUMBER/">
-    # URL-encoded الحلقة = %d8%a7%d9%84%d8%ad%d9%84%d9%82%d8%a9 (lowercase) or %D8%A7... (uppercase)
-    local episodes=$(echo "$html" | \
-        grep -oiP 'href="\Khttps://w1\.anime4up\.rest/episode/[^"]+' | \
-        sort -u | \
-        while read -r url; do
-            # Decode %d8%a7%d9%84%d8%ad%d9%84%d9%82%d8%a9 -> الحلقة then grab the trailing number
-            local ep_num=$(echo "$url" | grep -oiP '(?<=%d8%a7%d9%84%d8%ad%d9%84%d9%82%d8%a9-)\d+' | head -1)
-            # Also try after decoded form if curl had already decoded
-            [ -z "$ep_num" ] && ep_num=$(echo "$url" | grep -oP '(?<=الحلقة-)\d+' | head -1)
-            # Fallback: last number in the slug
-            [ -z "$ep_num" ] && ep_num=$(echo "$url" | grep -oP '\d+(?=[^0-9/]*/?$)' | head -1)
-            [ -z "$ep_num" ] && ep_num="?"
-            echo -e "${ep_num}\tالحلقة ${ep_num}\t${url}"
-        done | sort -t$'\t' -k1,1V)
+    while true; do
+        local page_url
+        if [ "$page" -eq 1 ]; then
+            page_url="$series_url"
+        else
+            page_url="${series_url%/}/page/$page/"
+        fi
 
-    cache_set "$cache_key" "$episodes"
-    echo "$episodes"
+        log "📄 Fetching page $page..."
+        local html=$(curl -s -L -A "$USER_AGENT" "$page_url")
+        sleep 3
+
+        local page_eps=$(echo "$html" | \
+            tr '\n' ' ' | \
+            grep -oP '<a href="https://w1\.anime4up\.rest/episode/[^"]+"\s+class="col-6[^>]+title="[^"]*الحلقة \d+"' | \
+            grep -oP '(?<=href=")[^"]+|(?<=الحلقة )\d+' | \
+            paste - - | \
+            awk -F'\t' '{print $2"\tالحلقة "$2"\t"$1}')
+
+        if [ -z "$page_eps" ]; then
+            log "⚠️ Page $page returned empty, stopping"
+            break
+        fi
+
+        local count=$(echo "$page_eps" | wc -l)
+        log "✅ Page $page: $count episodes"
+        all_episodes="${all_episodes}"$'\n'"${page_eps}"
+        page=$(( page + 1 ))
+    done
+
+    local result=$(echo "$all_episodes" | grep -v '^$' | sort -t$'\t' -k1,1n | uniq)
+    cache_set "$cache_key" "$result"
+    echo "$result"
 }
 
 extract_embed_video_url() {
@@ -451,7 +470,6 @@ play_episode() {
 interactive_select() {
     local query="$1"
 
-    # --- Get search results with fallback ---
     local raw_output
     raw_output=$(search_with_fallback "$query") || die "No results found on any source"
 
@@ -482,18 +500,56 @@ interactive_select() {
     [ -n "$last_ep" ] && log "📝 Last watched: Episode $last_ep"
 
     local selected_episode
+
     if command -v fzf >/dev/null; then
-        selected_episode=$(printf "%s\n" "$episodes" | fzf --reverse --with-nth=1,2 --prompt="🎬 Select episode: " --header="Last: Episode $last_ep")
+        local page_size=48
+        local total=$(echo "$episodes" | wc -l)
+        local total_pages=$(( (total + page_size - 1) / page_size ))
+        local current_page=0
+
+        while true; do
+            local start=$(( current_page * page_size + 1 ))
+            local end=$(( (current_page + 1) * page_size ))
+            [ $end -gt $total ] && end=$total
+
+            local page_episodes=$(echo "$episodes" | sort -t$'\t' -k1,1rn | sed -n "${start},${end}p")
+            local header="📺 Page $((current_page+1))/$total_pages | Ep $start-$end of $total | → Next  ← Prev | Last: Ep ${last_ep:-none}"
+
+            local selected
+            selected=$(printf "%s\n" "$page_episodes" | \
+                fzf --reverse \
+                    --with-nth=1,2 \
+                    --prompt="🎬 Episode: " \
+                    --header="$header" \
+                    --expect=right,left)
+
+            local key=$(echo "$selected" | head -1)
+            local choice=$(echo "$selected" | tail -n +2 | head -1)
+
+            case "$key" in
+                right)
+                    [ $(( current_page + 1 )) -lt $total_pages ] && current_page=$(( current_page + 1 ))
+                    continue
+                    ;;
+                left)
+                    [ $current_page -gt 0 ] && current_page=$(( current_page - 1 ))
+                    continue
+                    ;;
+            esac
+
+            [ -z "$choice" ] && die "No selection"
+            selected_episode="$choice"
+            break
+        done
     else
         printf "%s\n" "$episodes" | cut -f1,2 | cat -n
-        printf "Enter episode number: "
+        printf "Enter number: "
         read -r choice
         selected_episode=$(printf "%s\n" "$episodes" | sed -n "${choice}p")
     fi
 
     local ep_num=$(echo "$selected_episode" | cut -f1)
     local ep_url=$(echo "$selected_episode" | cut -f3)
-
     echo "$ep_url"
     echo "$ep_num"
     echo "$active_source"
