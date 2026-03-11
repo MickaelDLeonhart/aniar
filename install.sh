@@ -2,16 +2,18 @@
 # Installation script for aniar
 # Created by Mickael D Leonhart
 
-set -e
-
 show_banner() {
     cat << "EOF"
-    _    _ _ 
-   / \  | (_) __ _ 
-  / _ \ | | |/ _` |
- / ___ \| | | (_| |
-/_/   \_\_|_|\__,_|
-Arabic Anime Streaming Tool
+                                                                  _______  _              _______ 
+                                                                 (  ___  )( \   |\     /|(  ___  )
+                                                                 | (   ) || (   ( \   / )| (   ) |
+                                                                 | (___) || |    \ (_) / | (___) |
+                                                                 |  ___  || |     \   /  |  ___  |
+                                                                 | (   ) || |      ) (   | (   ) |
+                                                                 | )   ( || (____/\| |   | )   ( |
+                                                                 |/     \|(_______/\_/   |/     \|
+                                 
+                                                                    Arabic Anime Streaming Tool
 EOF
     echo -e "By Mickael D Leonhart\n"
 }
@@ -134,7 +136,7 @@ echo -e "\n${BLUE}⬇️  Downloading aniar...${NC}"
 TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 
-if curl -sL "https://github.com/MickaelDLeonhart/aniar/releases/download/v1.0.0/aniar" -o "aniar"; then
+if curl -sL "https://github.com/MickaelDLeonhart/aniar/releases/download/v1.0.1/aniar" -o "aniar"; then
     echo -e "  ${GREEN}✅ Downloaded successfully${NC}"
     
     # Install to /usr/local/bin
