@@ -324,10 +324,16 @@ get_episodes_from_anime4up() {
 
         local page_eps=$(echo "$html" | \
             tr '\n' ' ' | \
-            grep -oP '<a href="https://w1\.anime4up\.rest/episode/[^"]+"\s+class="col-6[^>]+title="[^"]*الحلقة \d+"' | \
-            grep -oP '(?<=href=")[^"]+|(?<=الحلقة )\d+' | \
+            grep -oP '<a href="https://w1\.anime4up\.rest/episode/[^"]+"\s+class="col-6[^>]+title="[^"]*الحلقة \d+[^"]*"' | \
+            grep -oP '(?<=href=")[^"]+|(?<=title=")[^"]+(?=")' | \
             paste - - | \
-            awk -F'\t' '{print $2"\tالحلقة "$2"\t"$1}')
+            awk -F'\t' '{
+                ep=$2; gsub(/.*الحلقة /,"",ep); gsub(/[^0-9].*/,"",ep)
+                label=$2; gsub(/.*الحلقة /,"الحلقة ",label)
+                if ($1 ~ /\-ova\-/) { label="OVA " label; ep="OVA" ep }
+                print ep"\t"label"\t"$1
+            }' | \
+            sort -t$'\t' -k1,1 | uniq)
 
         if [ -z "$page_eps" ]; then
             log "⚠️ Page $page returned empty, stopping"
