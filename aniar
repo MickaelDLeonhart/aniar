@@ -250,7 +250,7 @@ get_episodes_from_anime4up() {
         [ "$page" -eq 1 ] && page_url="$series_url" || page_url="${series_url%/}/page/$page/"
         log "📄 Fetching page $page..."
         local html=$(curl -s -L -A "$USER_AGENT" "$page_url")
-        sleep 3
+        sleep 2.2
         local page_eps=$(echo "$html" | \
             tr '\n' ' ' | \
             grep -oP '<a href="https://w1\.anime4up\.rest/episode/[^"]+"\s+class="col-6[^>]+title="[^"]*الحلقة [^"]*\d+[^"]*"' | \
