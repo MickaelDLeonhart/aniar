@@ -589,7 +589,7 @@ case "${1:-}" in
             download_series "${*:2}"
         fi ;;
     history)              show_history ;;
-    config)               ${EDITOR:-vi} "$CONFIG_FILE" ;;
+    config)               ${EDITOR:-nano} "$CONFIG_FILE" ;;
     update)               check_update ;;
     continue)             [ -z "$2" ] && die "Usage: $0 continue SERIES_NAME"; main "${*:2}" ;;
     clean)                clean_cache ;;
