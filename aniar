@@ -518,9 +518,9 @@ Options:
 Source: Anime4Up (${ANIME4UP_BASE})
 
 Examples:
-  aniar "ناروتو"               # Search and play Naruto
-  aniar continue "ون بيس"      # Continue One Piece
-  aniar download "بليتش"       # Download Bleach series
+  aniar "naruto"               # Search and play Naruto
+  aniar continue "one piece"      # Continue One Piece
+  aniar download "bleach"       # Download Bleach series
   aniar direct "URL"           # Play direct link
   aniar history                # Show watch history
 
