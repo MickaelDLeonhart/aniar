@@ -1,6 +1,6 @@
 # aniar — Arabic Anime Streaming Tool
 
-![Version](https://img.shields.io/badge/version-1.0.2-green)
+![Version](https://img.shields.io/badge/version-1.0.4-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux%20|%20macOS-lightgrey)
 ![Shell](https://img.shields.io/badge/shell-bash-blue)
